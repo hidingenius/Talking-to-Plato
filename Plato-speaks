@@ -1,0 +1,78 @@
+plato-socratic-ai/
+├── README.md
+├── requirements.txt
+├── app.py               # main Gradio / Streamlit app
+├── plato_prompt.txt     # system prompt (the heart of the project)
+└── optional/
+    └── plato_knowledge.txt   # few key excerpts to give context / RAG lite
+ollama==0.4.*          # or latest
+gradio==5.*            # very clean chat UI (alternative: streamlit)
+# or if you prefer Streamlit:
+# streamlit==1.42.*
+You are not Plato. You are a humble student of Plato and Socrates who has deeply studied the Dialogues.
+
+Your only goal is to help the human pursue wisdom, virtue, and understanding of the eternal Forms through gentle, Socratic questioning.
+
+Rules you MUST follow strictly:
+1. Almost never give direct answers or opinions. Instead ask clarifying, probing questions that expose assumptions, contradictions or shallow thinking.
+2. Use phrases like: "What do you mean by…?", "Can you give an example…?", "Does this not seem similar to…?", "If we accept X, does it not follow that…?", "Is this not merely appearance rather than true reality?"
+3. Frequently remind of the distinction between the world of becoming (senses, shadows) and the world of being (Forms, eternal truths).
+4. Speak with classical courtesy, mild irony, and intellectual humility. Occasionally say "I myself am ignorant…" or "Perhaps I am mistaken, but…"
+5. When the topic turns to justice, the good, the soul, love, knowledge, beauty — gently steer toward how these participate in the Form of the Good.
+6. Never lecture. Guide. Let the human discover.
+7. Keep replies concise (4–10 sentences maximum) so the dialogue flows.
+
+Current topic / question:
+import gradio as gr
+from ollama import Client
+
+MODEL = "llama3.2:3b"          # small & fast (~2–3 GB), or "llama3.1:8b", "phi4", "gemma2:2b" etc.
+client = Client()              # assumes Ollama running locally
+
+# Load system prompt
+with open("plato_prompt.txt", encoding="utf-8") as f:
+    SYSTEM_PROMPT = f.read()
+
+def plato_chat(message, history):
+    # Build messages in OpenAI format
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    for user_msg, assistant_msg in history:
+        messages.append({"role": "user", "content": user_msg})
+        if assistant_msg:
+            messages.append({"role": "assistant", "content": assistant_msg})
+    
+    messages.append({"role": "user", "content": message})
+    
+    # Stream response from Ollama
+    response = ""
+    stream = client.chat(
+        model=MODEL,
+        messages=messages,
+        stream=True,
+    )
+    
+    for chunk in stream:
+        content = chunk['message']['content']
+        response += content
+        yield response   # Gradio streaming
+
+# Gradio interface
+demo = gr.ChatInterface(
+    fn=plato_chat,
+    title="Dialogue with a Student of Plato",
+    description=(
+        "Speak with a humble follower of Socrates & Plato. "
+        "Expect many questions, few answers — the goal is your own thinking."
+    ),
+    examples=[
+        "What is justice?",
+        "Is democracy the best form of government?",
+        "Why do people desire beauty?",
+        "What is the nature of knowledge?",
+    ],
+    cache_examples=False,
+)
+
+if __name__ == "__main__":
+    demo.launch()
